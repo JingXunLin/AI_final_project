@@ -29,7 +29,6 @@ Useful properties of game objects
         - metros: List[Metro]
         - is_looped
 """
-
 class GameAPI:
     def __init__(self, is_static: bool, gamespeed: int = 1, visuals: bool = False):
         self.mediator = Mediator(gamespeed, gen_stations_first=is_static)
@@ -37,11 +36,10 @@ class GameAPI:
         self.clock = pygame.time.Clock()
         self.visuals = visuals
 
+        pygame.init()
+        pygame.display.quit()
         if visuals:
-            pygame.init()
-            flags = pygame.SCALED
-            self.screen = pygame.display.set_mode((screen_width, screen_height), flags, vsync=1)
-            self.mediator.assign_paths_to_buttons()
+            self.open_window()
 
     # def set_game_speed(self, gamespeed: float):
     #     self.gamespeed = gamespeed
@@ -58,12 +56,15 @@ class GameAPI:
     def current_score(self) -> int:
         return self.mediator.score
     
-    def visuals_on(self):
+    def open_window(self):
         self.visuals = True
-        pygame.init()
         flags = pygame.SCALED
         self.screen = pygame.display.set_mode((screen_width, screen_height), flags, vsync=1)
         self.mediator.assign_paths_to_buttons()
+    
+    def close_window(self):
+        self.visuals = False
+        pygame.display.quit()
     
     def screenshot(self, file_path: str, *initial_paths):
         if self.visuals:
