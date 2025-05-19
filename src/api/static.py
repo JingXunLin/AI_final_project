@@ -35,7 +35,10 @@ class StaticStationGame(GameAPI):
 
         game_over = False
         while not game_over:
-            dt_ms = 1000 / framerate
+            if self.visuals:
+                dt_ms = self.clock.tick(framerate)
+            else:
+                dt_ms = 1000 // framerate
             new_game_state = self.mediator.increment_time(dt_ms)
             game_over = (new_game_state == MeditatorState.ENDED)
 

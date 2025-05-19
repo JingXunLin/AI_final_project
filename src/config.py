@@ -23,7 +23,7 @@ station_shape_type_list = [
     ShapeType.CROSS,
 ]
 station_passengers_per_row = 4
-station_full_timeout = 50 # in seconds
+station_full_timeout = 30 # in seconds
 
 # passenger
 passenger_size = 3

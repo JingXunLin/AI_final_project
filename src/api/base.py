@@ -1,11 +1,12 @@
 from typing import List
 import pygame
 
-from config import screen_height, screen_width
+from config import screen_height, screen_width, screen_color
 from mediator import Mediator
 
 from entity.station import Station
 from entity.path import Path
+from visuals.background import draw_waves
 
 """
 Useful properties of game objects
@@ -56,3 +57,24 @@ class GameAPI:
     @property
     def current_score(self) -> int:
         return self.mediator.score
+    
+    def visuals_on(self):
+        self.visuals = True
+        pygame.init()
+        flags = pygame.SCALED
+        self.screen = pygame.display.set_mode((screen_width, screen_height), flags, vsync=1)
+        self.mediator.assign_paths_to_buttons()
+    
+    def screenshot(self, file_path: str, *initial_paths):
+        if self.visuals:
+            self.mediator.reset_progress()
+            self.mediator.initialize_paths(*initial_paths)
+            self.mediator.increment_time(0)
+
+            self.screen.fill(screen_color)
+            draw_waves(self.screen, self.mediator.time_ms)
+            self.mediator.render(self.screen)
+            pygame.display.flip()
+            pygame.image.save(self.screen, file_path)
+        else:
+            raise RuntimeError("Visuals are not enabled. Cannot take a screenshot.")

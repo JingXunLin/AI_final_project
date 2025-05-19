@@ -101,10 +101,10 @@ class Mediator:
                 for station in self.stations:
                     station.reset_progress()
             else:
-                self.stations = []
+                self.stations: List[Station] = []
                 self.try_spawn_stations(self.num_stations_max)
         else:
-            self.stations = []
+            self.stations: List[Station] = []
             
         # entities
         self.metros: List[Metro] = []
@@ -140,6 +140,8 @@ class Mediator:
 
     def create_path(self, path_config: Tuple[List[int], bool]):
         stations, is_loop = path_config
+        if len(stations) <= 1:
+            return
         
         self.start_path_on_station(self.stations[stations[0]])
         for station in stations[1:]:
