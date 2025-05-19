@@ -47,12 +47,12 @@ def local_search(previous_paths: List[Tuple[List[int], bool]] = [], start: Tuple
         
         for neighbor in neighbors_list:
             score = game.run(*previous_paths, neighbor)
-            if score > best_score:
-                local_minima_found = False
-
-                best_paths.clear()
+            if score >= best_score:
+                if score > best_score:
+                    best_paths.clear()
+                    best_score = score
                 best_paths.append(neighbor)
-                best_score = score
+                local_minima_found = False
         print(f'Iter thru {len(neighbors_list)} w/ score = {best_score}, t = {(datetime.datetime.now() - t).seconds} sec.; ')
         t = datetime.datetime.now()
 
@@ -66,15 +66,17 @@ def local_search(previous_paths: List[Tuple[List[int], bool]] = [], start: Tuple
     return chosen_path
 
 best_paths = [local_search([], ([0], False))]
-covered_stations = list(range(len(game.mediator.stations)))
+uncovered_stations = [x for x in range(len(game.mediator.stations)) if x not in best_paths[0][0]]
 for i in range(1, 7):
-    if len(covered_stations) == 0:
+    print('Uncovered stations:', uncovered_stations)
+    if len(uncovered_stations) == 0:
         start_station = random.randint(0, len(game.mediator.stations) - 1)
     else:
-        start_station = covered_stations[0]
+        start_station = uncovered_stations[0]
     new_path = local_search(previous_paths=best_paths, start=([start_station], False))
     for station in new_path[0]:
-        covered_stations.remove(station)
+        if station in uncovered_stations:
+            uncovered_stations.remove(station)
     best_paths.append(new_path)
 
 game.open_window()
