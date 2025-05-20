@@ -9,9 +9,9 @@ screen_height = 720
 screen_color = (117, 182, 255)
 
 # station
-num_stations_max = 20
+num_stations_max = 10
 station_grid_size = (14, 10)
-station_spawning_interval_step = 60 * framerate # 60 secs?
+station_spawning_interval_step = 20 * framerate # 60 secs?
 station_padding = 100
 station_size = 10
 station_capacity = 12
@@ -23,13 +23,13 @@ station_shape_type_list = [
     ShapeType.CROSS,
 ]
 station_passengers_per_row = 4
-station_full_timeout = 30 # in seconds
+station_full_timeout = 40 # in seconds
 
 # passenger
 passenger_size = 3
 passenger_color = (0, 50, 120)
 passenger_spawning_start_step = 1
-passenger_spawning_interval_step = 10 * framerate
+passenger_spawning_interval_step = 5 * framerate
 passenger_display_buffer = 3 * passenger_size
 
 # metro

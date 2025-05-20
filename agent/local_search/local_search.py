@@ -33,13 +33,11 @@ def neighbors(state: Tuple[List[int], bool]) -> List[Tuple[List[int], bool]]:
 def local_search(previous_paths: List[Tuple[List[int], bool]] = [], start: Tuple[List[int], bool] = ([0], False)) -> Tuple[List[int], bool]:
     t = datetime.datetime.now()
     best_paths, best_score = [start], game.run(*previous_paths, start)
-    
-    rng = random.Random(time.time()) # don't influence game randomness
     local_minima_found = False
 
     chosen_path: Tuple[List[int], bool]
     while not local_minima_found:
-        chosen_path = rng.choice(best_paths) # randomly select a path with same score
+        chosen_path = random.choice(best_paths) # randomly select a path with same score
         best_paths.remove(chosen_path)
 
         local_minima_found = True
