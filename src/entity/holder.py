@@ -14,9 +14,10 @@ from utils import lerp
 
 
 class Holder(ABC):
-    def __init__(self, shape: Shape, capacity: int, id: str) -> None:
+    def __init__(self, shape: Shape, capacity: int, id: str, can_overflow: bool = False) -> None:
         self.shape = shape
         self.capacity = capacity
+        self.can_overflow = can_overflow
         self.id = id
         self.position: Point
         self.passengers: List[Passenger] = []
@@ -31,11 +32,11 @@ class Holder(ABC):
         self.shape.draw(surface, self.position)
 
         # draw passengers
-        rot_per_passenger = 2 * pi / len(self.passengers) if len(self.passengers) > 0 else 0
-        for i in range(len(self.passengers)):
-            self.passenger_rotation[i] = lerp(self.passenger_rotation[i], rot_per_passenger * (len(self.passengers) - i - 1), 0.2)
+        rot_per_passenger = 2 * pi / self.visible_passengers if self.visible_passengers > 0 else 0
+        for i in range(self.visible_passengers):
+            self.passenger_rotation[i] = lerp(self.passenger_rotation[i], rot_per_passenger * (self.visible_passengers - i - 1), 0.2)
 
-        for i, passenger in enumerate(self.passengers):
+        for i, passenger in enumerate(self.passengers[:self.visible_passengers]):
             passenger.position = (
                 self.position
                 + Point(
@@ -51,7 +52,14 @@ class Holder(ABC):
         return self.shape.contains(point)
 
     def has_room(self) -> bool:
-        return self.capacity > len(self.passengers)
+        return self.can_overflow or self.capacity > len(self.passengers)
+    
+    @property
+    def visible_passengers(self) -> int:
+        return min(len(self.passengers), self.capacity)
+
+    def overflow(self) -> bool:
+        return len(self.passengers) > self.capacity
 
     def add_passenger(self, passenger: Passenger) -> None:
         assert self.has_room()
