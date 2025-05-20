@@ -125,7 +125,7 @@ class Mediator:
     
     # for STATIC API ONLY!
     # for PROGRESSIVE API, use recreate()
-    def initialize_paths(self, *paths_config: Tuple[List[int], bool]):
+    def initialize_paths(self, paths_config: List[Tuple[List[int], bool]]):
         self.paths: List[Path] = []
         self.metros: List[Metro] = []
 
@@ -261,7 +261,7 @@ class Mediator:
             self.cancelled_paths.append(path)
             for metro in path.metros:
                 metro.cancel()
-            print(f'{path.id} cancelled.')
+            # print(f'{path.id} cancelled.')
         else:
             self.remove_path(path)
 
@@ -404,8 +404,14 @@ class Mediator:
 
     def increment_time(self, dt_ms: int) -> MeditatorState:
         state = MeditatorState.RUNNING
-        if self.try_spawn_stations():
+        
+        spawn_cnt = 1
+        if len(self.stations) == 0:
+            spawn_cnt = 2
+        
+        if self.try_spawn_stations(spawn_cnt):
             state = MeditatorState.NEW_STATION
+
 
         if self.is_paused:
             return MeditatorState.PAUSED
