@@ -15,6 +15,7 @@ class Station(Holder):
     def __init__(self, rng: Random, shape: Shape, position: Point) -> None:
         super().__init__(
             shape=shape,
+            can_overflow=True,
             capacity=station_capacity,
             id=f"Station-{uuid()}-{shape.type}",
         )
@@ -38,16 +39,13 @@ class Station(Holder):
         # self.full_timeout = station_full_timeout * 1000 # in ms // wont be altered, no need to reset
     
     def check_timeout(self, time_ms: int) -> bool:
-        if len(self.passengers) < self.capacity:
+        if not self.overflow():
             self.full_duration = 0
             return False
         self.full_duration += time_ms
         if self.full_duration > self.full_timeout:
             return True
         return False
-    
-    def is_full(self):
-        return len(self.passengers) == self.capacity
 
     def __eq__(self, other: Station) -> bool:
         return self.id == other.id
@@ -70,7 +68,7 @@ class Station(Holder):
         return self.full_duration / self.full_timeout
 
     def draw(self, surface):
-        if self.is_full():
+        if self.overflow():
             if self.timeout_ratio > 0:
                 points = [self.position.to_tuple()]
                 radius = self.size * (1.5 + self.timeout_ratio * 1.5)
