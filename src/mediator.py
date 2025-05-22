@@ -98,12 +98,8 @@ class Mediator:
         self.used_stations_list: List[int] = [] # stores used station num
 
         if self.gen_stations_first:
-            if hasattr(self, 'stations'):
-                for station in self.stations:
-                    station.reset_progress(self.rng)
-            else:
-                self.stations: List[Station] = []
-                self.try_spawn_stations(self.num_stations_max)
+            self.stations: List[Station] = []
+            self.try_spawn_stations(self.num_stations_max)
         else:
             self.stations: List[Station] = []
             
@@ -403,16 +399,20 @@ class Mediator:
         self.next_station_spawn_timestep += station_spawning_interval_step
         return True
 
-    def increment_time(self, dt_ms: int) -> MeditatorState:
+    def increment_time(self, dt_ms: int) -> MeditatorState:        
+        dt_ms *= self.gamespeed
+
         state = MeditatorState.RUNNING
         if self.try_spawn_stations():
             state = MeditatorState.NEW_STATION
 
         if self.is_paused:
             return MeditatorState.PAUSED
-        
-        dt_ms *= self.gamespeed
 
+        for station in self.stations:
+            if station.check_timeout(dt_ms):
+                return MeditatorState.ENDED
+            
         # record time
         self.time_ms += dt_ms
         self.steps += self.gamespeed
@@ -431,10 +431,6 @@ class Mediator:
             if can_remove:
                 self.remove_path(path)
                 self.cancelled_paths.remove(path)
-        
-        for station in self.stations:
-            if station.check_timeout(dt_ms):
-                return MeditatorState.ENDED
 
         # spawn passengers
         # now spawn passengers independently by every station obeying poisson process

@@ -29,6 +29,8 @@ Useful properties of game objects
         - metros: List[Metro]
         - is_looped
 """
+
+
 class GameAPI:
     def __init__(self, is_static: bool, gamespeed: int = 1, visuals: bool = False):
         self.mediator = Mediator(gamespeed, gen_stations_first=is_static)
@@ -47,35 +49,38 @@ class GameAPI:
     @property
     def stations(self) -> List[Station]:
         return self.mediator.stations
-    
+
     @property
     def paths(self) -> List[Path]:
         return self.mediator.paths
-    
+
     @property
     def current_score(self) -> int:
         return self.mediator.score
-    
+
     def open_window(self):
         self.visuals = True
         flags = pygame.SCALED
-        self.screen = pygame.display.set_mode((screen_width, screen_height), flags, vsync=1)
+        self.screen = pygame.display.set_mode(
+            (screen_width, screen_height), flags, vsync=1
+        )
         self.mediator.assign_paths_to_buttons()
-    
+
     def close_window(self):
         self.visuals = False
         pygame.display.quit()
-    
-    def screenshot(self, file_path: str, *initial_paths):
-        if self.visuals:
-            self.mediator.reset_progress()
-            self.mediator.initialize_paths(*initial_paths)
-            self.mediator.increment_time(0)
 
-            self.screen.fill(screen_color)
-            draw_waves(self.screen, self.mediator.time_ms)
-            self.mediator.render(self.screen)
-            pygame.display.flip()
-            pygame.image.save(self.screen, file_path)
-        else:
-            raise RuntimeError("Visuals are not enabled. Cannot take a screenshot.")
+    def screenshot(self, file_path: str, *initial_paths):
+        self.open_window()
+
+        self.mediator.reset_progress()
+        self.mediator.initialize_paths(*initial_paths)
+        self.mediator.increment_time(0)
+
+        self.screen.fill(screen_color)
+        draw_waves(self.screen, self.mediator.time_ms)
+        self.mediator.render(self.screen)
+        pygame.display.flip()
+        pygame.image.save(self.screen, file_path)
+
+        self.close_window()
