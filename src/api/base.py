@@ -1,5 +1,6 @@
 from typing import List
 import pygame
+import vidmaker
 
 from config import screen_height, screen_width, screen_color
 from mediator import Mediator
@@ -37,6 +38,7 @@ class GameAPI:
         # self.gamespeed = gamespeed // unused?
         self.clock = pygame.time.Clock()
         self.visuals = visuals
+        self.video = None
 
         pygame.init()
         pygame.display.quit()
@@ -84,3 +86,12 @@ class GameAPI:
         pygame.image.save(self.screen, file_path)
 
         self.close_window()
+    
+    def start_record(self, filepath: str):
+        if not self.visuals:
+            self.open_window()
+        self.video = vidmaker.Video(filepath, late_export=True)
+    
+    def end_record(self):
+        if self.video:
+            self.video.export(verbose=True)

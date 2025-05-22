@@ -49,6 +49,8 @@ class StaticStationGame(GameAPI):
                     if pygame_event.type == pygame.QUIT:
                         raise SystemExit
                 
+                if self.video:
+                    self.video.update(pygame.surfarray.pixels3d(self.screen).swapaxes(0, 1), inverted=False)
                 sleep(1 / framerate)
         
         return self.mediator.score
