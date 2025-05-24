@@ -34,9 +34,9 @@ best.is_test = True
 
 # best.weights = {'C_dist': 0.37362594898113377, 'C_pass_density': -0.21657066789271218, 'C_station_type': -0.1561613953582895, 'C_dist_to_com': 0.3287302251791112, 'C_avr_path_length': -0.4688930048511986, 'C_avr_pass_density': 0.02134109025663304, 'C_total_station_types': -0.05180175640407855, 'U_avr_path_length': -0.012314831940689473, 'U_avr_pass_density': -0.9516134505205367, 'U_total_station_types': -0.1076513914461442}
 
-best.weights = {'C_dist': 0.2013070603985299, 'C_pass_density': 0.878596659488104, 'C_station_type': 0.18580867058326514, 'C_dist_to_com': 0.08099804357594342, 'C_avr_path_length': -0.23321750301814093, 'C_avr_pass_density': -1.0463719010900423, 'C_total_station_types': -0.03964309727929457, 'U_avr_path_length': 1.0252541167594655, 'U_avr_pass_density': -0.5863813234812765, 'U_total_station_types': 0.997308908788942}
+# best.weights = {'C_dist': 0.2013070603985299, 'C_pass_density': 0.878596659488104, 'C_station_type': 0.18580867058326514, 'C_dist_to_com': 0.08099804357594342, 'C_avr_path_length': -0.23321750301814093, 'C_avr_pass_density': -1.0463719010900423, 'C_total_station_types': -0.03964309727929457, 'U_avr_path_length': 1.0252541167594655, 'U_avr_pass_density': -0.5863813234812765, 'U_total_station_types': 0.997308908788942}
 
-
+best.weights = {'C_dist': 0.1945482221219615, 'C_pass_density': 1.0602180873439515, 'C_station_type': -0.32786348153859507, 'C_dist_to_com': -0.30440521239235213, 'C_avr_path_length': -0.857324728449404, 'C_avr_pass_density': 0.45716001490671426, 'C_total_station_types': -0.4952653475143276, 'U_avr_path_length': 0.4546961312564005, 'U_avr_pass_density': 0.10304167685646409, 'U_total_station_types': 0.7937839465452283}
 
 # ^ C & U
 

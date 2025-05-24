@@ -263,12 +263,12 @@ class Creature(Gene):
             # except:
             #     return None
         
-        pseudo_min = simulate_game(early_stopping=500)
+        pseudo_min = simulate_game(early_stopping=1000)
         while pseudo_min is None:
-            pseudo_min = simulate_game(early_stopping=500)
+            pseudo_min = simulate_game(early_stopping=1000)
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            scores = list(executor.map(lambda _: simulate_game(early_stopping=pseudo_min), range(5)))
+        with ThreadPoolExecutor(max_workers=9) as executor:
+            scores = list(executor.map(lambda _: simulate_game(early_stopping=pseudo_min), range(9)))
 
         scores = [s for s in scores if s is not None]
         self.fitness = min(min(scores), pseudo_min)
