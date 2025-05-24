@@ -134,11 +134,11 @@ class Mediator:
 
     # for PROGRESSIVE API ONLY!
     # for STATIC API, use initialize_paths()
-    def recreate_path(self, path_index: int, path_config: Tuple[List[int], bool]):
+    def recreate_path(self, path_index: int, path_config: Tuple[List[int], bool]) -> int:
         self.cancel_path(self.paths[path_index])
-        self.create_path(path_config)
+        return self.create_path(path_config)
 
-    def create_path(self, path_config: Tuple[List[int], bool]):
+    def create_path(self, path_config: Tuple[List[int], bool]) -> int:
         stations, is_loop = path_config
         
         self.start_path_on_station(self.stations[stations[0]])
@@ -150,6 +150,7 @@ class Mediator:
         
         # newly created path resides at the end of the list
         self.paths[-1].update_segments()
+        return len(self.paths) - 1
 
     def init_existing_station_shape_types(self):
         for station in self.stations:

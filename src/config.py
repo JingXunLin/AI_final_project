@@ -41,7 +41,7 @@ metro_speed_per_ms = 150 / 1000  # pixels / ms
 metro_passengers_per_row = 3
 
 # path
-toggle_split_lane = False
+toggle_split_lane = True
 num_paths = 7
 path_width = 5
 path_order_shift = 5
