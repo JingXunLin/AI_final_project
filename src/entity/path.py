@@ -31,6 +31,8 @@ class Path:
         self.padding_segments: List[PaddingSegment] = []
         self.path_order = 0
 
+        self.age = 0
+
     def __repr__(self) -> str:
         return self.id
 
@@ -116,6 +118,8 @@ class Path:
         self.metros.append(metro)
 
     def move_metro(self, metro: Metro, dt_ms: int) -> None:
+        self.age += dt_ms
+
         assert metro.current_segment is not None
         if metro.is_forward:
             dst_station = metro.current_segment.end_station

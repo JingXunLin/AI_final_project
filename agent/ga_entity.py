@@ -13,6 +13,7 @@ from typing import List, Tuple
 from api import ProgressiveStationGame
 
 from entity.station import Station
+from entity.path import Path
 from geometry.utils import distance
 
 from config import (
@@ -21,7 +22,9 @@ from config import (
     screen_width,
     screen_height,
     station_capacity,
-    num_paths
+    num_paths,
+    metro_speed_per_ms,
+    framerate
 )
 
 import math
@@ -34,6 +37,20 @@ grid_dx = int((screen_width - 2*padding) / grid_nx)
 grid_dy = int((screen_height - 2*padding) / grid_ny)
 
 mean_min_dist = math.sqrt(grid_dx * grid_dy)
+
+class PathConfig:
+    def __init__(self, config: Tuple[List[int], bool], in_game_idx: int):
+        self.stations = config[0]
+        self.is_loop = config[1]
+        self.ingame_idx = in_game_idx
+
+    def bind_ingame_idx(self, new_idx: int):
+        self.ingame_idx = new_idx
+
+    @property
+    def config(self):
+        return (self.stations, self.is_loop)
+
 
 class Gene:
     def __init__(self):
@@ -60,11 +77,13 @@ class Gene:
             # "U_total_station_types": 0,
 
 
-            # # delete
-            # "D_overlap_factor": 0,
-            # "D_avr_path_length": 0,
+            # delete
+            "D_overlap_factor": 0,
+            "D_path_length": 0,
             # "D_total_station_types": 0,
-            # "D_avr_wait_time": 0,
+            "D_avr_wait_time": 0,
+            "D_not_isolated": 0,
+            "D_has_isolated": 0,
         }
 
         self.com_cache = None
@@ -93,9 +112,9 @@ class Gene:
         dist_to_com = distance((s1.position + s2.position) * (1/2), self.com_cache) / mean_min_dist
         score += self.weights["C_dist_to_com"] * dist_to_com
 
-        return score
+        return float(score)
     
-    def score_C_reuse(self, stations: List[Station]):
+    def score_C_reuse(self, stations: List[Station], paths_cnt: int):
         score = 0
 
         total_path_len = sum([distance(a.position, b.position) for a, b in zip(stations[:-1], stations[1:])])
@@ -112,49 +131,52 @@ class Gene:
         station_types = len(set([sta.shape.type for sta in stations]))
         score += self.weights["C_total_station_types"] * station_types
 
-        return score
+        return float(score)
     
-    
-    def score_connection(self, sta1: Station, sta2: Station):
+    def score_D(self, path_index: int, paths: List[PathConfig], in_game_paths: List[Path], has_not_connected_station: bool):
+        try:
+            target_path = paths[path_index]
+            target_path_obj = in_game_paths[target_path.ingame_idx]
+        except:
+            print(len(paths), len(in_game_paths))
+            print("acc:", target_path.ingame_idx)
+
+            raise Exception
+        
         score = 0
 
-        dist = distance(sta1.position, sta2.position) / 100.0  # normalize roughly
-        score -= self.weights["distance"] * dist
+        # overlap_factor = 0
+        # for other_path in paths:
+        #     if other_path.stations == target_path.stations:
+        #         continue
 
-        passenger_density = (len(sta1.passengers) + len(sta2.passengers)) / 20.0  # normalize
-        score += self.weights["passenger_density"] * passenger_density
+        #     overlap_factor = max(
+        #         overlap_factor,
+        #         len(set(target_path.stations) & set(other_path.stations)) \
+        #             / ((len(target_path.stations) + len(other_path.stations)) / 2)
+        #     )
+        # score += self.weights["D_overlap_factor"] * overlap_factor
 
-        diversity = 1 if sta1.shape.type != sta2.shape.type else 0
-        score += self.weights["station_type"] * diversity
+        total_path_len = sum([distance(a.position, b.position) for a, b in zip(target_path_obj.stations[:-1], target_path_obj.stations[1:])])
+        path_len = total_path_len / mean_min_dist # / len(stations)
+        score += self.weights["D_path_length"] * path_len
 
-        return score
-    
-    def evaluate_redesign_action(self, act, game, paths_config):
-        path_index, (new_path, is_loop) = act
-        old_path = paths_config[path_index][0]
+        # station_types = len(set([sta.shape.type for sta in target_path_obj.stations]))
+        # score += self.weights["D_total_station_types"] * station_types
 
-        coverage_gain = len(set(new_path) - set(old_path))
-        congestion_reduction = self.estimate_congestion_reduction(path_index, new_path)
-        average_distance = np.mean([
-            distance(game.stations[a].position, game.stations[b].position)
-            for a, b in zip(new_path[:-1], new_path[1:])
-        ]) / 100.0  # normalize
-        type_diversity = len(set([game.stations[i].shape.type for i in new_path]))
+        # total_wait_time = 2 * total_path_len / (metro_speed_per_ms * 1000)
+        # loop_wait_time = total_wait_time / (2 if target_path.is_loop else 1)
+        # score += self.weights["D_avr_wait_time"] * loop_wait_time
 
-        score = 0
-        score += self.weights["coverage_gain"] * coverage_gain
-        # score += w["congestion_reduction"] * congestion_reduction
-        score -= self.weights["average_distance"] * average_distance
-        score += self.weights["station_type_diversity"] * type_diversity
-        score += self.weights["reuse_existing_path"] * len(set(new_path) & set(old_path))
-        # score += self.weights["is_loop"] * is_loop
+        # score += self.weights["D_age"] * target_path_obj.age / 1000 / 30
 
-        return score
-    
-    def estimate_congestion_reduction(self, path_index, new_path):
-        # 用乘客數或壅塞站數估計，也可以回傳 random for now
-        # return np.random.uniform(0, 5)
-        return 0
+        if has_not_connected_station:
+            score += self.weights["D_has_isolated"]
+        else:
+            score += self.weights["D_not_isolated"]
+
+        return float(score)
+
 
 class Creature(Gene):
     def __init__(self, need_calc_fitness: bool = False):
@@ -172,27 +194,31 @@ class Creature(Gene):
         
         self.calc_fitness()
         self.need_recalc_fitness = False
+        self.is_test = False
 
     def calc_fitness(self):
         # alpha-beta pruning-like
         def simulate_game(early_stopping: int):
-            try:
+            # try:
                 game = Game(self)
-                return game.play(early_stopping)
-            except:
-                return None
+                
+                score = game.play(early_stopping)
+                # print(score)
+                return score
+            # except:
+            #     return None
         
         pseudo_min = simulate_game(early_stopping=500)
         while pseudo_min is None:
             pseudo_min = simulate_game(early_stopping=500)
 
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            scores = list(executor.map(lambda _: simulate_game(early_stopping=pseudo_min), range(8)))
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            scores = list(executor.map(lambda _: simulate_game(early_stopping=pseudo_min), range(5)))
 
         scores = [s for s in scores if s is not None]
         self.fitness = min(min(scores), pseudo_min)
 
-    def test(self):
+    def statistics(self):
         def simulate_game(early_stopping: int):
             try:
                 game = Game(self)
@@ -205,27 +231,29 @@ class Creature(Gene):
 
         print(scores)
 
-class PathConfig:
-    def __init__(self, config: Tuple[List[int], bool], in_game_idx: int):
-        self.stations = config[0]
-        self.is_loop = config[1]
-        self.ingame_idx = in_game_idx
-
-    def bind_ingame_idx(self, new_idx: int):
-        self.ingame_idx = new_idx
-
-    @property
-    def config(self):
-        return (self.stations, self.is_loop)
+    def single(self):
+        game = Game(self, self.is_test)
+        return game.play(early_stopping=1E9)
 
 class Game:
-    def __init__(self, player: Creature):
+    def __init__(self, player: Creature, is_test: bool = False):
         self.player = player
-        self.actions = []
+        self.is_test = is_test
 
-        gamespeed = 31.25 # 200 # 31.25
-        in_game_break_time = (0.5/gamespeed) * 1000 # stop periodic yield
-        self.game = ProgressiveStationGame(gamespeed=gamespeed, yield_interval_ms=in_game_break_time, visuals=False)
+        self.actions = []
+        self.best_actions = []
+        
+        if self.is_test:
+            self.gamespeed = 10
+            self.visuals = True
+        else:
+            self.gamespeed = 200
+            self.visuals = False
+        
+        in_game_break_time = (0.5/self.gamespeed) * 1000 # stop periodic yield
+
+        self.game = ProgressiveStationGame(
+            gamespeed=self.gamespeed, yield_interval_ms=in_game_break_time, visuals=self.visuals)
 
         self.paths: List[PathConfig] = []
 
@@ -246,28 +274,37 @@ class Game:
             return
 
         self.actions = []
+        self.best_actions = []
 
         if len(self.game.paths) < num_paths:
             self.get_connect_actions()
-        
-        # self.get_redesign_actions()
-
-        best_connect, connect_score = self.get_best_connect_actions()
-        # best_redesign, redesign_score = self.get_best_redesign_action()
-        
-        if best_connect is None: # and best_redesign is None:
-            return
-        
-        # print(best_connect)
-        self.apply_connect_action(best_connect)
-        # self.apply_redesign_action(best_redesign
-
-        # if redesign_score > connect_score:
-        #     self.apply_redesign_action(best_redesign)
         # else:
-        #     self.apply_connect_action(best_connect)
+        #     self.get_delete_actions()
 
-    def get_connect_actions(self) -> Tuple[str, Tuple[int, int]]:
+        self.best_actions.append(self.get_best_connect_action())
+        self.best_actions.append(self.get_best_delete_action())
+
+        # print("best:", self.best_actions)
+
+        self.best_actions.sort(key=lambda act: act[1], reverse=True)
+
+        do_action = self.best_actions[0][0]
+
+        if do_action is None:
+            return
+
+        act_type, act = do_action
+
+        if self.is_test:
+            print(f"do({act_type}): {act}")
+
+        if act_type == "C":
+            self.apply_connect_action(act)
+        elif act_type == "D":
+            self.apply_delete_action(act)
+
+
+    def get_connect_actions(self):
         stations = range(len(self.game.stations))
 
         for s1_ind in stations:
@@ -282,7 +319,7 @@ class Game:
                 if not is_connected:
                     self.actions.append(('C', (s1_ind, s2_ind)))
 
-    def get_best_connect_actions(self) -> Tuple[any, float]:
+    def get_best_connect_action(self) -> Tuple[any, float]:
         best_act_score = -float("inf")
         best_act = None
         
@@ -304,7 +341,7 @@ class Game:
         if best_act is None:
             return None, best_act_score
 
-        return best_act[1], best_act_score
+        return best_act, best_act_score
     
     def apply_connect_action(self, act: Tuple[int, int]):
         s1_ind, s2_ind = act
@@ -329,52 +366,75 @@ class Game:
             self.paths.append(PathConfig(new_path, ingame_idx))
 
     def should_use_existing_path(self, s1_ind: int, s2_ind: int):
-        max_score = -float("inf")
+        def try_station(target_idx, other_idx, path_stations, ingame_stations):
+            if target_idx not in path_stations:
+                return None
+
+            loc = path_stations.index(target_idx)
+            if loc not in (0, len(path_stations) - 1):
+                return None
+
+            insert_at = loc + 1 if loc == len(path_stations) - 1 else loc
+            score = self.player.score_C_reuse(ingame_stations, len(self.paths))
+            return (score, (True, path_index, other_idx, insert_at))
+
+        max_choice = (-float("inf"), (False, None, None, None))
+
+        for path_index, path in enumerate(self.paths):
+            path_stations = path.stations
+            ingame_stations = self.game.paths[path.ingame_idx].stations
+
+            for target, other in [(s1_ind, s2_ind), (s2_ind, s1_ind)]:
+                result = try_station(target, other, path_stations, ingame_stations)
+                if result and result[0] > max_choice[0]:
+                    max_choice = result
+
+        if max_choice[0] < 0:
+            return False, None, None, None
+
+        return max_choice[1]
+
+    def get_delete_actions(self):
+        for path_index in range(len(self.paths)):
+            self.actions.append(('D', path_index))
+
+    def get_best_delete_action(self):
+        best_act_score = -float("inf")
+        best_act = None
+
+        connected_stations = set()
+        for path in self.paths:
+            connected_stations.update(path.stations)
+
+        has_not_connected_station = (len(self.game.stations) - len(connected_stations)) > 0
         
-        # use_existing_path, self_path_idx, disjoint_station, insert_at
-        best_choice = (False, None, None, None)
+        for act in self.actions:
+            if act[0] != "D":
+                continue
 
-        for ind, path in enumerate(self.paths):
-            stations = path.stations
+            path_index = act[1]
+            score = self.player.score_D(path_index, self.paths, self.game.paths, has_not_connected_station)
 
-            if s1_ind in stations:
-                s1_loc = stations.index(s1_ind)
-                is_outer = s1_loc in [0, len(stations) - 1]
-                
-                if not is_outer:
-                    continue
-                
-                insert_ind = s1_loc
-                if s1_loc == len(stations) - 1:
-                    insert_ind += 1
-                
-                reuse_score = self.player.score_C_reuse(
-                    self.game.paths[self.paths[ind].ingame_idx].stations
-                )
-                if reuse_score > max_score:
-                    max_score = reuse_score
-                    best_choice = (True, ind, s2_ind, insert_ind)
-            
-            elif s2_ind in stations:
-                s2_loc = stations.index(s2_ind)
-                is_outer = s2_loc in [0, len(stations) - 1]
-                
-                if not is_outer:
-                    continue
-                
-                insert_ind = s2_loc
-                if s2_loc == len(stations) - 1:
-                    insert_ind += 1
-                
-                reuse_score = self.player.score_C_reuse(
-                    self.game.paths[self.paths[ind].ingame_idx].stations
-                )
-                if reuse_score > max_score:
-                    max_score = reuse_score
-                    best_choice = (True, ind, s1_ind, insert_ind)
+            if score > best_act_score:
+                best_act_score = score
+                best_act = act
 
-        return best_choice
+        if best_act is None:
+            return None, best_act_score
+
+        return best_act, best_act_score
     
+    def apply_delete_action(self, act: int):
+        del_ingame_idx = self.paths[act].ingame_idx
+        self.game.delete_path(del_ingame_idx)
+        del self.paths[act]
+
+        # update local in-game path index
+        for path in self.paths:
+            if path.ingame_idx >= del_ingame_idx:
+                path.ingame_idx -= 1
+
+
     def get_redesign_actions(self):
         self.redesign_acts = []
 

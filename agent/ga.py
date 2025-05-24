@@ -16,8 +16,8 @@ from tqdm import tqdm
 
 class GA:
     def __init__(self):
-        self.population_size = 40
-        self.generation_limit = 300
+        self.population_size = 30
+        self.generation_limit = 100
         self.mutation_rate = 0.25
 
         self.population: List[Creature] = []
@@ -32,7 +32,7 @@ class GA:
         def create_one():
             return Creature(need_calc_fitness=True)
 
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        with ThreadPoolExecutor(max_workers=self.population_size) as executor:
             results = list(tqdm(
                 executor.map(lambda _: create_one(), range(self.population_size)),
                 total=self.population_size,
@@ -114,7 +114,7 @@ class GA:
                 result.append(child)
             return result
 
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        with ThreadPoolExecutor(max_workers=self.population_size) as executor:
             futures = [
                 executor.submit(create_children, p1, p2)
                 for (p1, p2) in self.parent_index
