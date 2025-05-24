@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 class GA:
     def __init__(self):
-        self.population_size = 30
+        self.population_size = 40
         self.generation_limit = 100
         self.mutation_rate = 0.25
 
@@ -61,8 +61,8 @@ class GA:
         child1 = Creature()
         child2 = Creature()
 
-        r = np.random.random()
         for w_name in p1.weights:
+            r = np.random.random()
             child1.weights[w_name] = p1.weights[w_name] * r + p2.weights[w_name] * (1 - r)
             child2.weights[w_name] = p2.weights[w_name] * r + p1.weights[w_name] * (1 - r)
 

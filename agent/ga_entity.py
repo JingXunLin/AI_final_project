@@ -28,6 +28,10 @@ from config import (
 )
 
 import math
+import random
+import copy
+
+from itertools import islice, permutations
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -40,8 +44,7 @@ mean_min_dist = math.sqrt(grid_dx * grid_dy)
 
 class PathConfig:
     def __init__(self, config: Tuple[List[int], bool], in_game_idx: int):
-        self.stations = config[0]
-        self.is_loop = config[1]
+        self.stations, self.is_loop = config
         self.ingame_idx = in_game_idx
 
     def bind_ingame_idx(self, new_idx: int):
@@ -50,6 +53,9 @@ class PathConfig:
     @property
     def config(self):
         return (self.stations, self.is_loop)
+    
+    def set_config(self, config: Tuple[List[int], bool]):
+        self.stations, self.is_loop = config
 
 
 class Gene:
@@ -69,21 +75,21 @@ class Gene:
             "C_total_station_types": 0,
 
 
-            # # update
+            # update
             # "U_is_loop": 0,
-            # "U_avr_path_length": 0,
-            # "U_avr_wait_time": 0,
-            # "U_avr_pass_density": 0,
-            # "U_total_station_types": 0,
+            "U_avr_path_length": 0,
+            # "U_exact_avr_wait_time": 0,
+            "U_avr_pass_density": 0,
+            "U_total_station_types": 0,
 
 
-            # delete
-            "D_overlap_factor": 0,
-            "D_path_length": 0,
-            # "D_total_station_types": 0,
-            "D_avr_wait_time": 0,
-            "D_not_isolated": 0,
-            "D_has_isolated": 0,
+            # # delete
+            # "D_overlap_factor": 0,
+            # "D_path_length": 0,
+            # # "D_total_station_types": 0,
+            # "D_avr_wait_time": 0,
+            # "D_not_isolated": 0,
+            # "D_has_isolated": 0,
         }
 
         self.com_cache = None
@@ -133,50 +139,99 @@ class Gene:
 
         return float(score)
     
-    def score_D(self, path_index: int, paths: List[PathConfig], in_game_paths: List[Path], has_not_connected_station: bool):
-        try:
-            target_path = paths[path_index]
-            target_path_obj = in_game_paths[target_path.ingame_idx]
-        except:
-            print(len(paths), len(in_game_paths))
-            print("acc:", target_path.ingame_idx)
+    def calc_exact_avr_wait_time(self, assumed_path: List[Station], is_loop: bool) -> float:
+        dist_between_stations = [
+            distance(a.position, b.position)
+            for a, b in zip(assumed_path[:-1], assumed_path[1:])
+        ]
 
-            raise Exception
-        
+        total_dist = sum(dist_between_stations)
+        if is_loop:
+            total_dist += distance(assumed_path[-1].position, assumed_path[0].position)
+
+        total_time = total_dist / mean_min_dist / (metro_speed_per_ms * 1000)
+        avr_wait_time = total_time / 2
+
+        return avr_wait_time
+
+
+    def score_U(self, act, game: ProgressiveStationGame):
+        path_index, path_config, _ = act
+        sta_ind, is_loop = path_config
+        virtual_game_stations = [game.stations[sta] for sta in sta_ind]
+
         score = 0
 
-        # overlap_factor = 0
-        # for other_path in paths:
-        #     if other_path.stations == target_path.stations:
-        #         continue
+        # is_loop
+        # score += self.weights["U_is_loop"] * is_loop
 
-        #     overlap_factor = max(
-        #         overlap_factor,
-        #         len(set(target_path.stations) & set(other_path.stations)) \
-        #             / ((len(target_path.stations) + len(other_path.stations)) / 2)
-        #     )
-        # score += self.weights["D_overlap_factor"] * overlap_factor
+        # avr_path_length
+        total_path_len = sum([distance(a.position, b.position) for a, b in zip(virtual_game_stations[:-1], virtual_game_stations[1:])])
+        avr_path_len = total_path_len / len(virtual_game_stations) / mean_min_dist
+        score += self.weights["U_avr_path_length"] * avr_path_len
 
-        total_path_len = sum([distance(a.position, b.position) for a, b in zip(target_path_obj.stations[:-1], target_path_obj.stations[1:])])
-        path_len = total_path_len / mean_min_dist # / len(stations)
-        score += self.weights["D_path_length"] * path_len
+        # exact_avr_wait_time
+        # exact_avr_wait_time = self.calc_exact_avr_wait_time(virtual_game_stations, is_loop)
+        # score += self.weights["U_exact_avr_wait_time"] * exact_avr_wait_time
 
-        # station_types = len(set([sta.shape.type for sta in target_path_obj.stations]))
-        # score += self.weights["D_total_station_types"] * station_types
+        # avr_pass_density
+        total_pass_density = sum([
+            len(sta.passengers) / station_capacity
+            for sta in virtual_game_stations]
+        )
+        avr_pass_density = total_pass_density / len(virtual_game_stations)
+        score += self.weights["U_avr_pass_density"] * avr_pass_density
 
-        # total_wait_time = 2 * total_path_len / (metro_speed_per_ms * 1000)
-        # loop_wait_time = total_wait_time / (2 if target_path.is_loop else 1)
-        # score += self.weights["D_avr_wait_time"] * loop_wait_time
-
-        # score += self.weights["D_age"] * target_path_obj.age / 1000 / 30
-
-        if has_not_connected_station:
-            score += self.weights["D_has_isolated"]
-        else:
-            score += self.weights["D_not_isolated"]
+        # total_station_types
+        station_types = len(set([sta.shape.type for sta in virtual_game_stations]))
+        score += self.weights["U_total_station_types"] * station_types
 
         return float(score)
 
+
+    # def score_D(self, path_index: int, paths: List[PathConfig], in_game_paths: List[Path], has_not_connected_station: bool):
+    #     try:
+    #         target_path = paths[path_index]
+    #         target_path_obj = in_game_paths[target_path.ingame_idx]
+    #     except:
+    #         print(len(paths), len(in_game_paths))
+    #         print("acc:", target_path.ingame_idx)
+
+    #         raise Exception
+        
+    #     score = 0
+
+    #     # overlap_factor = 0
+    #     # for other_path in paths:
+    #     #     if other_path.stations == target_path.stations:
+    #     #         continue
+
+    #     #     overlap_factor = max(
+    #     #         overlap_factor,
+    #     #         len(set(target_path.stations) & set(other_path.stations)) \
+    #     #             / ((len(target_path.stations) + len(other_path.stations)) / 2)
+    #     #     )
+    #     # score += self.weights["D_overlap_factor"] * overlap_factor
+
+    #     total_path_len = sum([distance(a.position, b.position) for a, b in zip(target_path_obj.stations[:-1], target_path_obj.stations[1:])])
+    #     path_len = total_path_len / mean_min_dist # / len(stations)
+    #     score += self.weights["D_path_length"] * path_len
+
+    #     # station_types = len(set([sta.shape.type for sta in target_path_obj.stations]))
+    #     # score += self.weights["D_total_station_types"] * station_types
+
+    #     # total_wait_time = 2 * total_path_len / (metro_speed_per_ms * 1000)
+    #     # loop_wait_time = total_wait_time / (2 if target_path.is_loop else 1)
+    #     # score += self.weights["D_avr_wait_time"] * loop_wait_time
+
+    #     # score += self.weights["D_age"] * target_path_obj.age / 1000 / 30
+
+    #     if has_not_connected_station:
+    #         score += self.weights["D_has_isolated"]
+    #     else:
+    #         score += self.weights["D_not_isolated"]
+
+    #     return float(score)
 
 class Creature(Gene):
     def __init__(self, need_calc_fitness: bool = False):
@@ -226,8 +281,8 @@ class Creature(Gene):
             except:
                 return None
         
-        with ThreadPoolExecutor(max_workers=50) as executor:
-            scores = list(executor.map(lambda _: simulate_game(early_stopping=1E9), range(100)))
+        with ThreadPoolExecutor(max_workers=200) as executor:
+            scores = list(executor.map(lambda _: simulate_game(early_stopping=1E9), range(1000)))
 
         print(scores)
 
@@ -278,30 +333,41 @@ class Game:
 
         if len(self.game.paths) < num_paths:
             self.get_connect_actions()
-        # else:
-        #     self.get_delete_actions()
 
         self.best_actions.append(self.get_best_connect_action())
-        self.best_actions.append(self.get_best_delete_action())
-
-        # print("best:", self.best_actions)
-
         self.best_actions.sort(key=lambda act: act[1], reverse=True)
-
         do_action = self.best_actions[0][0]
 
-        if do_action is None:
-            return
+        if do_action:
+            act_type, act = do_action
 
-        act_type, act = do_action
+            if self.is_test:
+                print(f"do({act_type}): {act}")
 
-        if self.is_test:
-            print(f"do({act_type}): {act}")
-
-        if act_type == "C":
             self.apply_connect_action(act)
-        elif act_type == "D":
-            self.apply_delete_action(act)
+
+        self.actions = []
+        self.best_actions = []
+
+        if len(self.paths) >= 1:
+            self.get_update_actions()
+
+        self.best_actions.append(self.get_best_update_action())
+        self.best_actions.sort(key=lambda act: act[1], reverse=True)
+        do_action = self.best_actions[0][0]
+
+        if do_action:
+            act_type, act = do_action
+            
+            if self.is_test:
+                print(f"do({act_type}): {self.paths[act[0]].config} -> {act}")
+
+            self.apply_update_action(act)
+
+    def update_when_delete_path(self, old_ingame_idx: int):
+        for path in self.paths:
+            if path.ingame_idx > old_ingame_idx:
+                path.ingame_idx -= 1
 
 
     def get_connect_actions(self):
@@ -350,6 +416,7 @@ class Game:
 
         if use_existing_path:
             # old_path = self.paths[self_path_idx].stations.copy()
+            self.update_when_delete_path(self.paths[self_path_idx].ingame_idx)
             self.paths[self_path_idx].stations.insert(insert_at, disjoint_station)
 
             new_ingame_idx = self.game.recreate_path(
@@ -394,115 +461,129 @@ class Game:
 
         return max_choice[1]
 
-    def get_delete_actions(self):
-        for path_index in range(len(self.paths)):
-            self.actions.append(('D', path_index))
+    # def get_delete_actions(self):
+    #     for path_index in range(len(self.paths)):
+    #         self.actions.append(('D', path_index))
 
-    def get_best_delete_action(self):
-        best_act_score = -float("inf")
+    # def get_best_delete_action(self):
+    #     best_act_score = -float("inf")
+    #     best_act = None
+
+    #     connected_stations = set()
+    #     for path in self.paths:
+    #         connected_stations.update(path.stations)
+
+    #     has_not_connected_station = (len(self.game.stations) - len(connected_stations)) > 0
+        
+    #     for act in self.actions:
+    #         if act[0] != "D":
+    #             continue
+
+    #         path_index = act[1]
+    #         score = self.player.score_D(path_index, self.paths, self.game.paths, has_not_connected_station)
+
+    #         if score > best_act_score:
+    #             best_act_score = score
+    #             best_act = act
+
+    #     if best_act is None:
+    #         return None, best_act_score
+
+    #     return best_act, best_act_score
+    
+    # def apply_delete_action(self, act: int):
+    #     del_ingame_idx = self.paths[act].ingame_idx
+    #     self.game.delete_path(del_ingame_idx)
+    #     del self.paths[act]
+
+    #     # update local in-game path index
+    #     for path in self.paths:
+    #         if path.ingame_idx >= del_ingame_idx:
+    #             path.ingame_idx -= 1
+
+    def get_update_actions(self):
+        """
+        update operations:
+            X - delete sta from path
+            X - replace sta in path
+            - add isolated sta to path
+            X swap sta in another path
+            - shuffle path order
+            - toggle path loop (affects various indexes)
+
+        action format: ("U", (path_ind, updated_path_config))
+        """
+
+        all_station_set = set(range(len(self.game.stations)))
+        all_connected_stations = set()
+
+        for path in self.paths:
+            all_connected_stations.update(path.stations)
+
+        isolated_stations = list(all_station_set - all_connected_stations)
+
+        # add isolated sta to path
+        for ind, path in enumerate(self.paths):
+            for sta in isolated_stations:
+                new_config = ([*path.stations, sta], False)
+                self.actions.append(('U', (ind, new_config, 'iso')))
+        
+        # shuffle path order
+        for ind, path in enumerate(self.paths):
+            if len(path.stations) <= 2:
+                continue
+            
+            for new_path in self.get_non_repeat_permutations(path.stations):
+                new_path = list(new_path)
+
+                if new_path == path.stations \
+                    or new_path == path.stations[::-1]:
+                    continue
+                
+                new_config = (new_path, path.is_loop)
+                self.actions.append(('U', (ind, new_config, 'shuf')))
+
+        # toggle path loop
+        # for ind, path in enumerate(self.paths):
+        #     if len(path.stations) <= 3:
+        #         continue
+
+        #     new_config = (path.stations, not path.is_loop)
+        #     self.actions.append(('U', (ind, new_config, 'togg')))
+    
+    def get_non_repeat_permutations(self, lst, max_count=50):
+        return list(islice(permutations(lst), max_count))
+
+    def get_best_update_action(self):
+        best_delta = 0
         best_act = None
 
-        connected_stations = set()
-        for path in self.paths:
-            connected_stations.update(path.stations)
-
-        has_not_connected_station = (len(self.game.stations) - len(connected_stations)) > 0
-        
-        for act in self.actions:
-            if act[0] != "D":
+        for (act_type, act) in self.actions:
+            if act_type != 'U':
                 continue
+            
+            null_act = (act[0], self.paths[act[0]].config, 'old')
+            old_score = self.player.score_U(null_act, self.game)
+            score = self.player.score_U(act, self.game)
 
-            path_index = act[1]
-            score = self.player.score_D(path_index, self.paths, self.game.paths, has_not_connected_station)
-
-            if score > best_act_score:
-                best_act_score = score
+            if (score - old_score) > best_delta:
+                best_delta = score - old_score
                 best_act = act
 
         if best_act is None:
-            return None, best_act_score
+            return None, best_delta
 
-        return best_act, best_act_score
-    
-    def apply_delete_action(self, act: int):
-        del_ingame_idx = self.paths[act].ingame_idx
-        self.game.delete_path(del_ingame_idx)
-        del self.paths[act]
+        return ('U', best_act), best_delta
 
-        # update local in-game path index
-        for path in self.paths:
-            if path.ingame_idx >= del_ingame_idx:
-                path.ingame_idx -= 1
+    def apply_update_action(self, act):
+        path_ind, path_config, _ = act
 
+        self.update_when_delete_path(self.paths[path_ind].ingame_idx)
+        self.paths[path_ind].set_config(path_config)
 
-    def get_redesign_actions(self):
-        self.redesign_acts = []
+        new_ingame_idx = self.game.recreate_path(
+            self.paths[path_ind].ingame_idx,
+            self.paths[path_ind].config
+        )
 
-        all_station_set = set(range(len(self.game.stations)))
-
-        for path_index, (path, is_loop) in enumerate(self.paths):
-            if len(path) < 3:
-                continue  # 太短不重繪
-            
-            disjoint_stations = list(all_station_set - set(path))
-
-            # generate path under del op
-            for sta in path:
-                new_path = list(path)
-                new_path.remove(sta)
-
-                if len(new_path) == len(set(new_path)):
-                    self.redesign_acts.append((path_index, (new_path, is_loop)))
-
-            # generate path under add op
-            for sta in disjoint_stations:
-                new_path = list(path)
-                new_path.append(sta)
-
-                if len(new_path) == len(set(new_path)):
-                    self.redesign_acts.append((path_index, (new_path, is_loop)))
-
-            # generate path under replace op
-            for sta in disjoint_stations:
-                for i in range(len(path)):
-                    new_path = list(path)
-                    new_path[i] = sta
-
-                    if len(new_path) == len(set(new_path)):
-                        self.redesign_acts.append((path_index, (new_path, is_loop)))
-
-            # generate path under shuffle op
-            new_path = list(path)
-            np.random.shuffle(new_path)
-
-            if len(new_path) == len(set(new_path)):
-                self.redesign_acts.append((path_index, (new_path, is_loop)))
-
-            # toggle path loop
-            # new_path = list(path)
-
-            # if len(new_path) == len(set(new_path)):
-            #     self.redesign_acts.append((path_index, (new_path, not is_loop)))
-
-    def get_best_redesign_action(self):
-        best_score = -float("inf")
-        best_act = None
-        for act in self.redesign_acts:
-            score = self.player.evaluate_redesign_action(act, self.game, self.paths)
-            if score > best_score:
-                best_score = score
-                best_act = act
-        return best_act, best_score  # 補上 score 讓 act() 可以比較
-
-    def apply_redesign_action(self, act):
-        path_index, new_path_config = act
-        self.paths[path_index] = new_path_config
-        
-        try:
-            self.game.recreate_path(path_index, new_path_config)
-        except:
-            print(self.paths)
-            print(act)
-
-
-
+        self.paths[path_ind].bind_ingame_idx(new_ingame_idx)
