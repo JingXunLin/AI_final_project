@@ -26,9 +26,6 @@ class GA:
         self.generate_initial_population()
 
     def generate_initial_population(self):
-        # for _ in range(self.population_size):
-        #     self.population.append(Creature(need_calc_fitness=True))
-
         def create_one():
             return Creature(need_calc_fitness=True)
 

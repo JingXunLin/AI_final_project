@@ -43,8 +43,14 @@ best.is_test = True
 # succeed in basic difficulty!!!!
 best.weights = {'C_dist': -0.5956543047854342, 'C_pass_density': -0.7870721708103461, 'C_station_type': 0.49594080055672174, 'C_dist_to_com': -0.21951759115827188, 'C_avr_path_length': -0.5443971696159355, 'C_avr_pass_density': 0.8692824219994149, 'C_total_station_types': -0.7017724212240876, 'U_avr_path_length': -0.01320670949902888, 'U_wait_time_mean': 0.5353797758950448, 'U_wait_time_std': -0.36437763589671857, 'U_total_station_types': 0.08109701042055815}
 
+# ^ basic difficulty
+
+# best.weights = {'C_dist': -0.19917131879368732, 'C_pass_density': 0.2787486124885343, 'C_station_type': 0.3090120694299829, 'C_dist_to_com': -0.17102827094620238, 'C_avr_path_length': -0.07019598561342712, 'C_avr_pass_density': 0.09030570418722851, 'C_total_station_types': -0.5841576472603173, 'U_avr_path_length': -0.09778346190286592, 'U_wait_time_mean': -0.10176380357354772, 'U_wait_time_std': -0.5263181122040541, 'U_total_station_types': 0.6538171481338091}
+
+# ^ difficulty 2
+
 # ^ C & U
 
-print(best.statistics())
+# print(best.statistics())
 
-# print(best.single())
+print(best.single())
