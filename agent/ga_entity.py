@@ -76,11 +76,12 @@ class Gene:
 
 
             # update
-            # "U_is_loop": 0,
             "U_avr_path_length": 0,
-            # "U_exact_avr_wait_time": 0,
-            "U_avr_pass_density": 0,
+            "U_wait_time_mean": 0,
+            "U_wait_time_std": 0,
             "U_total_station_types": 0,
+            # "U_is_loop": 0,
+            # "U_avr_pass_density": 0,
 
 
             # # delete
@@ -120,7 +121,7 @@ class Gene:
 
         return float(score)
     
-    def score_C_reuse(self, stations: List[Station], paths_cnt: int):
+    def score_C_reuse(self, stations: List[Station]):
         score = 0
 
         total_path_len = sum([distance(a.position, b.position) for a, b in zip(stations[:-1], stations[1:])])
@@ -139,20 +140,39 @@ class Gene:
 
         return float(score)
     
-    def calc_exact_avr_wait_time(self, assumed_path: List[Station], is_loop: bool) -> float:
+    def calc_wait_time_statistics(self, assumed_path: List[Station], is_loop: bool):
+        """
+        return mean, std
+        """
         dist_between_stations = [
             distance(a.position, b.position)
             for a, b in zip(assumed_path[:-1], assumed_path[1:])
         ]
 
-        total_dist = sum(dist_between_stations)
+        # calculate wait time mean and std, velocity = metro_speed_per_ms * 1000 (to px/s)
         if is_loop:
-            total_dist += distance(assumed_path[-1].position, assumed_path[0].position)
+            dist_between_stations.append(distance(assumed_path[-1].position, assumed_path[0].position))
+            wait_time_mean = sum(dist_between_stations) / (metro_speed_per_ms * 1000) / mean_min_dist
+            return wait_time_mean, 0
+        
+        wait_times = []
 
-        total_time = total_dist / mean_min_dist / (metro_speed_per_ms * 1000)
-        avr_wait_time = total_time / 2
+        # outer stations
+        whole_wait_time = sum(dist_between_stations) / (metro_speed_per_ms * 1000) / mean_min_dist
+        wait_times.extend([whole_wait_time] * 2)
 
-        return avr_wait_time
+        # middle stations
+        for sta_ind in range(1, len(assumed_path) - 2):
+            left_dist = 2 * sum(dist_between_stations[:sta_ind])
+            right_dist = 2 * sum(dist_between_stations[sta_ind + 1:])
+
+            left_wait_time = left_dist / (metro_speed_per_ms * 1000) / mean_min_dist
+            right_wait_time = right_dist / (metro_speed_per_ms * 1000) / mean_min_dist
+
+            wait_times.extend([left_wait_time / 2, right_wait_time / 2])
+
+        wait_times = np.array(wait_times)
+        return float(np.mean(wait_times)), float(np.std(wait_times))
 
 
     def score_U(self, act, game: ProgressiveStationGame):
@@ -162,25 +182,18 @@ class Gene:
 
         score = 0
 
-        # is_loop
-        # score += self.weights["U_is_loop"] * is_loop
-
         # avr_path_length
         total_path_len = sum([distance(a.position, b.position) for a, b in zip(virtual_game_stations[:-1], virtual_game_stations[1:])])
+        
+        if is_loop:
+            total_path_len += distance(virtual_game_stations[-1].position, virtual_game_stations[0].position)
+        
         avr_path_len = total_path_len / len(virtual_game_stations) / mean_min_dist
         score += self.weights["U_avr_path_length"] * avr_path_len
 
-        # exact_avr_wait_time
-        # exact_avr_wait_time = self.calc_exact_avr_wait_time(virtual_game_stations, is_loop)
-        # score += self.weights["U_exact_avr_wait_time"] * exact_avr_wait_time
-
-        # avr_pass_density
-        total_pass_density = sum([
-            len(sta.passengers) / station_capacity
-            for sta in virtual_game_stations]
-        )
-        avr_pass_density = total_pass_density / len(virtual_game_stations)
-        score += self.weights["U_avr_pass_density"] * avr_pass_density
+        wait_time_mean, wait_time_std = self.calc_wait_time_statistics(virtual_game_stations, is_loop)
+        score += self.weights["U_wait_time_mean"] * wait_time_mean
+        score += self.weights["U_wait_time_std"] * wait_time_std
 
         # total_station_types
         station_types = len(set([sta.shape.type for sta in virtual_game_stations]))
@@ -254,14 +267,14 @@ class Creature(Gene):
     def calc_fitness(self):
         # alpha-beta pruning-like
         def simulate_game(early_stopping: int):
-            # try:
+            try:
                 game = Game(self)
                 
                 score = game.play(early_stopping)
                 # print(score)
                 return score
-            # except:
-            #     return None
+            except:
+                return None
         
         pseudo_min = simulate_game(early_stopping=1000)
         while pseudo_min is None:
@@ -279,10 +292,11 @@ class Creature(Gene):
                 game = Game(self)
                 return game.play(early_stopping)
             except:
+                print("err!")
                 return None
         
-        with ThreadPoolExecutor(max_workers=200) as executor:
-            scores = list(executor.map(lambda _: simulate_game(early_stopping=1E9), range(1000)))
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            scores = list(executor.map(lambda _: simulate_game(early_stopping=1E4), range(5)))
 
         print(scores)
 
@@ -299,10 +313,10 @@ class Game:
         self.best_actions = []
         
         if self.is_test:
-            self.gamespeed = 10
+            self.gamespeed = 31.25
             self.visuals = True
         else:
-            self.gamespeed = 200
+            self.gamespeed = 31.25
             self.visuals = False
         
         in_game_break_time = (0.5/self.gamespeed) * 1000 # stop periodic yield
@@ -442,7 +456,7 @@ class Game:
                 return None
 
             insert_at = loc + 1 if loc == len(path_stations) - 1 else loc
-            score = self.player.score_C_reuse(ingame_stations, len(self.paths))
+            score = self.player.score_C_reuse(ingame_stations)
             return (score, (True, path_index, other_idx, insert_at))
 
         max_choice = (-float("inf"), (False, None, None, None))
@@ -544,12 +558,12 @@ class Game:
                 self.actions.append(('U', (ind, new_config, 'shuf')))
 
         # toggle path loop
-        # for ind, path in enumerate(self.paths):
-        #     if len(path.stations) <= 3:
-        #         continue
+        for ind, path in enumerate(self.paths):
+            if len(path.stations) <= 3:
+                continue
 
-        #     new_config = (path.stations, not path.is_loop)
-        #     self.actions.append(('U', (ind, new_config, 'togg')))
+            new_config = (path.stations, not path.is_loop)
+            self.actions.append(('U', (ind, new_config, 'togg')))
     
     def get_non_repeat_permutations(self, lst, max_count=50):
         return list(islice(permutations(lst), max_count))

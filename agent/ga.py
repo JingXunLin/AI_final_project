@@ -36,10 +36,11 @@ class GA:
             results = list(tqdm(
                 executor.map(lambda _: create_one(), range(self.population_size)),
                 total=self.population_size,
-                desc="Creating initial creatures"
+                desc="Initial creatures"
             ))
 
         self.population.extend(results)
+        self.sort_population()
 
     def sort_population(self):
         self.population.sort(key=lambda c: c.fitness, reverse=True)
@@ -58,19 +59,17 @@ class GA:
 
 
     def crossover(self, p1: Creature, p2: Creature) -> List[Creature]:
-        child1 = Creature()
-        child2 = Creature()
+        children = []
 
-        for w_name in p1.weights:
-            r = np.random.random()
-            child1.weights[w_name] = p1.weights[w_name] * r + p2.weights[w_name] * (1 - r)
-            child2.weights[w_name] = p2.weights[w_name] * r + p1.weights[w_name] * (1 - r)
+        for _ in range(2):
+            child = Creature()
+            r = np.random.uniform(-0.1, 1.1)
+            for w_name in p1.weights:
+                child.weights[w_name] = p1.weights[w_name] * r + p2.weights[w_name] * (1 - r)
 
-            # # swap
-            # if np.random.random() < 0.5:
-            #     child1.weights[w_name], child2.weights[w_name] = child2.weights[w_name], child1.weights[w_name]
+            children.append(child)
 
-        return [child1, child2]
+        return children
 
     def mutate(self, c: Creature):
         for key in c.weights:
@@ -91,23 +90,19 @@ class GA:
         # 4. calc fitness
         # 5. merge parent and children
         # 6. get survivors
-        # 7. check if cur best is goal
 
-        self.sort_population()
-
-        print("@0", self.population[0].fitness)
-        print("w:", self.population[0].weights)
-        print("fits:", [c.fitness for c in self.population])
+        print(f"Best fit: {self.population[0].fitness}, wi's: {self.population[0].weights}")
+        print("Fitnesses:", [c.fitness for c in self.population])
         
-        print('sel')
+        print('Selecting...')
         self.selection()
         
         new_population: List[Creature] = []
 
         def create_children(p1_ind, p2_ind):
-            childs = self.crossover(self.population[p1_ind], self.population[p2_ind])
+            children = self.crossover(self.population[p1_ind], self.population[p2_ind])
             result = []
-            for child in childs:
+            for child in children:
                 if np.random.random() < self.mutation_rate:
                     self.mutate(child)
                 child.try_calc_fitness()
@@ -119,7 +114,7 @@ class GA:
                 executor.submit(create_children, p1, p2)
                 for (p1, p2) in self.parent_index
             ]
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Creating children"):
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Crossover"):
                 new_population.extend(future.result())
 
         self.population.extend(new_population)

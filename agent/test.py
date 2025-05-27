@@ -36,8 +36,15 @@ best.is_test = True
 
 # best.weights = {'C_dist': 0.2013070603985299, 'C_pass_density': 0.878596659488104, 'C_station_type': 0.18580867058326514, 'C_dist_to_com': 0.08099804357594342, 'C_avr_path_length': -0.23321750301814093, 'C_avr_pass_density': -1.0463719010900423, 'C_total_station_types': -0.03964309727929457, 'U_avr_path_length': 1.0252541167594655, 'U_avr_pass_density': -0.5863813234812765, 'U_total_station_types': 0.997308908788942}
 
-best.weights = {'C_dist': 0.1945482221219615, 'C_pass_density': 1.0602180873439515, 'C_station_type': -0.32786348153859507, 'C_dist_to_com': -0.30440521239235213, 'C_avr_path_length': -0.857324728449404, 'C_avr_pass_density': 0.45716001490671426, 'C_total_station_types': -0.4952653475143276, 'U_avr_path_length': 0.4546961312564005, 'U_avr_pass_density': 0.10304167685646409, 'U_total_station_types': 0.7937839465452283}
+# best.weights = {'C_dist': 0.1945482221219615, 'C_pass_density': 1.0602180873439515, 'C_station_type': -0.32786348153859507, 'C_dist_to_com': -0.30440521239235213, 'C_avr_path_length': -0.857324728449404, 'C_avr_pass_density': 0.45716001490671426, 'C_total_station_types': -0.4952653475143276, 'U_avr_path_length': 0.4546961312564005, 'U_avr_pass_density': 0.10304167685646409, 'U_total_station_types': 0.7937839465452283}
+
+# best.weights = {'C_dist': 0.5537510416892144, 'C_pass_density': -0.4437697681694046, 'C_station_type': 0.4811784784963223, 'C_dist_to_com': 0.48570536524268676, 'C_avr_path_length': -0.4540985686798379, 'C_avr_pass_density': -0.649306715658289, 'C_total_station_types': -0.11193510570802251, 'U_avr_path_length': 0.808342720540329, 'U_wait_time_mean': -0.22257134178683977, 'U_wait_time_std': -0.04497713613819694, 'U_total_station_types': 0.7040911370976295}
+
+# succeed in basic difficulty!!!!
+best.weights = {'C_dist': -0.5956543047854342, 'C_pass_density': -0.7870721708103461, 'C_station_type': 0.49594080055672174, 'C_dist_to_com': -0.21951759115827188, 'C_avr_path_length': -0.5443971696159355, 'C_avr_pass_density': 0.8692824219994149, 'C_total_station_types': -0.7017724212240876, 'U_avr_path_length': -0.01320670949902888, 'U_wait_time_mean': 0.5353797758950448, 'U_wait_time_std': -0.36437763589671857, 'U_total_station_types': 0.08109701042055815}
 
 # ^ C & U
 
 print(best.statistics())
+
+# print(best.single())
