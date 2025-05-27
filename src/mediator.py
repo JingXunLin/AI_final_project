@@ -252,6 +252,8 @@ class Mediator:
             self.metros.remove(metro)
     
     def cancel_path(self, path: Path):
+        if len(self.path_to_button) == 0 or path not in self.path_to_button.keys():
+            return
         self.path_to_button[path].remove_path()
         self.release_color_for_path(path)
         self.paths.remove(path)
@@ -261,7 +263,6 @@ class Mediator:
             self.cancelled_paths.append(path)
             for metro in path.metros:
                 metro.cancel()
-            print(f'{path.id} cancelled.')
         else:
             self.remove_path(path)
 
@@ -276,7 +277,7 @@ class Mediator:
 
     def start_path_on_station(self, station: Station) -> None:
         if len(self.paths) >= self.num_paths:
-            print("No more lanes available!")
+            #print("No more lanes available!")
             return
 
         self.is_creating_path = True
@@ -291,7 +292,8 @@ class Mediator:
         self.paths.append(path)
 
     def add_station_to_path(self, station: Station) -> None:
-        assert self.path_being_created is not None
+        if self.path_being_created is None:
+            return
         if self.path_being_created.stations[-1] == station:
             return
         
@@ -320,7 +322,8 @@ class Mediator:
         del self.path_to_color[path]
 
     def finish_path_creation(self) -> None:
-        assert self.path_being_created is not None
+        if self.path_being_created is  None:
+            return
         self.is_creating_path = False
         self.path_being_created.is_being_created = False
         self.path_being_created.remove_temporary_point()
