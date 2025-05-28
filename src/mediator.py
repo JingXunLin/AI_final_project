@@ -8,6 +8,8 @@ import random
 import time
 from typing import Dict, List, Set
 
+import os
+
 import pygame
 
 from config import (
@@ -56,14 +58,14 @@ class Mediator:
         pygame.font.init()
 
         self.gamespeed = gamespeed
-        self.seed = time.time()
+        self.seed = int.from_bytes(os.urandom(8), 'big')
         self.gen_stations_first = gen_stations_first
 
         self.reset_progress()
 
     def reset_progress(self) -> None:
         # rng
-        self.rng = Random(int(self.seed))
+        self.rng = Random(self.seed)
 
         # configs
         self.passenger_spawning_step = passenger_spawning_start_step
@@ -138,6 +140,27 @@ class Mediator:
     def recreate_path(self, path_index: int, path_config: Tuple[List[int], bool]) -> int:
         self.cancel_path(self.paths[path_index])
         return self.create_path(path_config)
+    
+    def swap_stations_between_path(self, path_pair: Tuple[int, int], swap_pair: Tuple[int, int]):
+        """
+        path_pair: in-game path index to swap (p1 <-> p2)
+        swap_pair: station index to swap (t1 <-> t2)
+        """
+
+        p1_ind, p2_ind = path_pair
+        p1: Path = self.paths[p1_ind]
+        p2: Path = self.paths[p2_ind]
+
+        sta1_ind, sta2_ind = swap_pair
+        sta1: Station = self.stations[sta1_ind]
+        sta2: Station = self.stations[sta2_ind]
+
+        p1.stations[p1.stations.index(sta1)] = sta2
+        p2.stations[p2.stations.index(sta2)] = sta1
+
+        p1.update_segments()
+        p2.update_segments()
+        
 
     def create_path(self, path_config: Tuple[List[int], bool]) -> int:
         stations, is_loop = path_config

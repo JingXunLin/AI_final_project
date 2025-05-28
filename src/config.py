@@ -9,7 +9,7 @@ screen_height = 720
 screen_color = (117, 182, 255)
 
 # station
-num_stations_max = 10
+num_stations_max = 11
 station_grid_size = (14, 10)
 station_spawning_interval_step = 20 * framerate # 60 secs?
 station_padding = 100
@@ -41,10 +41,10 @@ metro_speed_per_ms = 150 / 1000  # pixels / ms
 metro_passengers_per_row = 3
 
 # path
-toggle_split_lane = True
-num_paths = 7
+toggle_split_lane = False
+num_paths = 5
 path_width = 5
-path_order_shift = 5
+path_order_shift = 0
 
 # button
 button_color = (180, 180, 180)

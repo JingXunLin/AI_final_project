@@ -28,8 +28,6 @@ from config import (
 )
 
 import math
-import random
-import copy
 
 from itertools import islice, permutations
 
@@ -83,6 +81,9 @@ class Operation:
 
 class Gene:
     def __init__(self):
+        self.seed = int.from_bytes(os.urandom(8), 'big')
+        self.rng = np.random.default_rng(self.seed)
+
         # C(R)UD
         self.weights = {
             # create
@@ -99,11 +100,13 @@ class Gene:
 
 
             # update
-            "U_avr_path_length": 0,
+            # "U_avr_path_length": 0,
             "U_wait_time_mean": 0,
             "U_wait_time_std": 0,
             "U_total_station_types": 0,
-            # "U_has_isolated_stations": 0,
+            "U_has_isolated_stations": 0,
+            "U_station_cnt": 0,
+            # "U_overlap": 0,
         }
 
         # cache global attributes in 1 period
@@ -114,7 +117,7 @@ class Gene:
 
     def randomize_weights(self):
         for key in self.weights.keys():
-            self.weights[key] = np.random.uniform(-1, 1)
+            self.weights[key] = self.rng.uniform(-1, 1)
 
     def score_C_connect(self, s1: Station, s2: Station, stations: List[Station]):
         score = 0
@@ -190,31 +193,50 @@ class Gene:
         return float(np.mean(wait_times)), float(np.std(wait_times))
 
 
-    def score_U(self, path_ind: int, path_config: PathConfigContent, game: ProgressiveStationGame):
-        sta_ind, is_loop = path_config
-        virtual_game_stations = [game.stations[sta] for sta in sta_ind]
+    def score_U(self, path_config: PathConfigContent, game: ProgressiveStationGame, paths: List[PathConfig]):
+        stations, is_loop = path_config
+        virtual_game_stations = [game.stations[sta] for sta in stations]
 
         score = 0
 
         # avr_path_length
-        total_path_len = sum([distance(a.position, b.position) for a, b in zip(virtual_game_stations[:-1], virtual_game_stations[1:])])
+        if "U_avr_path_length" in self.weights:
+            total_path_len = sum([distance(a.position, b.position) for a, b in zip(virtual_game_stations[:-1], virtual_game_stations[1:])])
         
-        if is_loop:
-            total_path_len += distance(virtual_game_stations[-1].position, virtual_game_stations[0].position)
+            if is_loop:
+                total_path_len += distance(virtual_game_stations[-1].position, virtual_game_stations[0].position)
         
-        avr_path_len = total_path_len / len(virtual_game_stations) / mean_min_dist
-        score += self.weights["U_avr_path_length"] * avr_path_len
+            avr_path_len = total_path_len / len(virtual_game_stations) / mean_min_dist
+            score += self.weights["U_avr_path_length"] * avr_path_len
 
-        wait_time_mean, wait_time_std = self.calc_wait_time_statistics(virtual_game_stations, is_loop)
-        score += self.weights["U_wait_time_mean"] * wait_time_mean
-        score += self.weights["U_wait_time_std"] * wait_time_std
+        if "U_wait_time_mean" in self.weights and "U_wait_time_std" in self.weights:
+            wait_time_mean, wait_time_std = self.calc_wait_time_statistics(virtual_game_stations, is_loop)
+            score += self.weights["U_wait_time_mean"] * wait_time_mean
+            score += self.weights["U_wait_time_std"] * wait_time_std
 
         # total_station_types
-        station_types = len(set([sta.shape.type for sta in virtual_game_stations]))
-        score += self.weights["U_total_station_types"] * station_types
+        if "U_total_station_types" in self.weights:
+            station_types = len(set([sta.shape.type for sta in virtual_game_stations]))
+            score += self.weights["U_total_station_types"] * station_types
 
-        # contains_isolated_stations = 1 if any([sta in self.iso_cache for sta in sta_ind]) else 0
-        # score += self.weights["U_has_isolated_stations"] * contains_isolated_stations
+        if "U_has_isolated_stations" in self.weights:
+            contains_isolated_stations = 1 if any([sta in self.iso_cache for sta in stations]) else 0
+            score += self.weights["U_has_isolated_stations"] * contains_isolated_stations
+
+        if "U_station_cnt" in self.weights:
+            score += self.weights["U_station_cnt"] * len(stations)
+
+        # if "U_overlap" in self.weights:
+        #     max_overlap_cnt = 0
+
+        #     self_stas = set(stations)
+        #     for path_conf in paths:
+        #         if stations == path_conf.stations:
+        #             continue
+        #         other_stas = set(path_conf.stations)
+        #         max_overlap_cnt = max(max_overlap_cnt, len(self_stas & other_stas))
+            
+        #     score += self.weights['U_overlap'] * (max_overlap_cnt / len(self_stas))
 
         return float(score)
 
@@ -246,6 +268,7 @@ class Creature(Gene):
                 # print(score)
                 return score
             except:
+                print("err!")
                 return None
         
         pseudo_min = simulate_game(early_stopping=1000)
@@ -267,8 +290,8 @@ class Creature(Gene):
                 print("err!")
                 return None
         
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            scores = list(executor.map(lambda _: simulate_game(early_stopping=3E3), range(10)))
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            scores = list(executor.map(lambda _: simulate_game(early_stopping=3E3), range(100)))
 
         print(scores)
 
@@ -493,6 +516,8 @@ class Game:
             new_op: UpdateOp = [(ind, new_config)]
             self.actions.append(Operation("U", new_op, 'togg'))
 
+        
+
     def get_all_reverse_operations(self, lst, max_count=50):
         return list(islice(permutations(lst), max_count))
     
@@ -510,7 +535,7 @@ class Game:
 
         return results
 
-    def get_best_update_action(self, custom_target_actions: List[Operation] = None):
+    def get_best_update_action(self):
         best_delta = 0
         best_act = None
 
@@ -522,12 +547,12 @@ class Game:
             for op in act.op:
                 path_ind, _ = op
                 old_path_config = self.paths[path_ind].config
-                old_total_score += self.player.score_U(path_ind, old_path_config, self.game)
+                old_total_score += self.player.score_U(old_path_config, self.game, self.paths)
             
             new_total_score = 0
             for op in act.op:
                 path_ind, new_path_config = op
-                new_total_score += self.player.score_U(path_ind, new_path_config, self.game)
+                new_total_score += self.player.score_U(new_path_config, self.game, self.paths)
 
             act.score = new_total_score - old_total_score
 
@@ -538,7 +563,6 @@ class Game:
         return best_act
 
     def apply_update_action(self, op: UpdateOp):
-        # bug: not suitable for len(op) > 1
         for path_ind, path_config in op:
             self.update_before_delete_path(self.paths[path_ind].ingame_idx)
             self.paths[path_ind].set_config(path_config)

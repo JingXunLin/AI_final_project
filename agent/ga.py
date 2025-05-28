@@ -55,12 +55,12 @@ class GA:
             self.parent_index.append((parents[0], parents[1]))
 
 
-    def crossover(self, p1: Creature, p2: Creature) -> List[Creature]:
+    def crossover(self, p1: Creature, p2: Creature, rng: np.random.Generator) -> List[Creature]:
         children = []
 
-        for _ in range(2):
+        for _ in range(2): # 40 * 2 children
             child = Creature()
-            r = np.random.uniform(-0.1, 1.1)
+            r = rng.uniform(-0.1, 1.1)
             for w_name in p1.weights:
                 child.weights[w_name] = p1.weights[w_name] * r + p2.weights[w_name] * (1 - r)
 
@@ -68,10 +68,10 @@ class GA:
 
         return children
 
-    def mutate(self, c: Creature):
+    def mutate(self, c: Creature, rng: np.random.Generator):
         for key in c.weights:
-            if np.random.rand() < 0.8:  # 每個基因 80% 的機率被 mutate
-                delta = np.random.uniform(-0.7, 0.7)
+            if rng.random() < 0.8:  # 每個基因 80% 的機率被 mutate
+                delta = rng.uniform(-0.7, 0.7)
                 c.weights[key] += delta
                 c.weights[key] = max(-5.0, min(5.0, c.weights[key]))
 
@@ -97,11 +97,14 @@ class GA:
         new_population: List[Creature] = []
 
         def create_children(p1_ind, p2_ind):
-            children = self.crossover(self.population[p1_ind], self.population[p2_ind])
+            seed = int.from_bytes(os.urandom(8), 'big')
+            rng = np.random.default_rng(seed)
+
+            children = self.crossover(self.population[p1_ind], self.population[p2_ind], rng)
             result = []
             for child in children:
-                if np.random.random() < self.mutation_rate:
-                    self.mutate(child)
+                if rng.random() < self.mutation_rate:
+                    self.mutate(child, rng)
                 child.try_calc_fitness()
                 result.append(child)
             return result
